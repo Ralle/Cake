@@ -338,7 +338,12 @@ class Cake
   private static function transferDryRun($path)
   {
     $rpath = self::$data['conn']['path'];
-    $to = ($rpath ? $rpath . '/' : '') . $path;
+    echo 'rpath ', $rpath, "\r\n";
+    echo 'path ', $path, "\r\n";
+    
+    $dir = dirname($path);
+    $to = ($rpath ? $rpath . '/' : '') . ($dir != '.' ? $dir : '');
+    $to = self::sanitizePath($to);
     
     echo 'Transferring ', $path, ' to ', $to, "\r\n";
   }
@@ -351,7 +356,9 @@ class Cake
       $$k = $v;
     }
     
-    $to = ($rpath ? $rpath . '/' : '') . $path;
+    $dir = dirname($path);
+    $to = ($rpath ? $rpath . '/' : '') . ($dir != '.' ? $dir : '');
+    $to = self::sanitizePath($to);
     
     echo 'Transferring ', $path, ' to ', $to, "\r\n";
     
@@ -373,7 +380,7 @@ class Cake
         break;
         
       case 'local':
-        @mkdir('/' . dirname($to), 0777, true);
+        @mkdir('/' . $to, 0777, true);
         $command = 'cp ' . 
           escapeshellarg($path) . 
           ' /' . escapeshellarg($to) . ' 2>&1';
