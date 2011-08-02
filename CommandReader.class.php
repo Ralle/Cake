@@ -65,6 +65,10 @@ class CommandReader
         case 'n':
           Cake::upload(true);
           break;
+        
+        case 'reset':
+          Cake::reset();
+          break;
       }
     }
     else

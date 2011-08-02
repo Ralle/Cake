@@ -7,6 +7,8 @@ class Cake
   public static $confPath;
   public static $relativeDir;
   
+  private static $cleanUpList = array();
+  
   private static $standardFiles = array(
     '.DS_Store',
     '.ftpssh_settings',
@@ -19,7 +21,7 @@ class Cake
   
   private static $connectionTypes = array(
     'ftp',
-    'ssh',
+    'scp',
     'local',
   );
   
@@ -90,7 +92,6 @@ class Cake
       exit;
     }
   }
-  
   
   public static function loadConfig()
   {
@@ -164,7 +165,7 @@ class Cake
       $data = strtolower($data);
       if (!in_array($data, self::$connectionTypes))
       {
-        throw new Exception('Protocol must be one of the following: ', implode(',', self::$connectionTypes));
+        throw new Exception('Protocol must be one of the following: '. implode(',', self::$connectionTypes));
       }
     }
     
@@ -190,6 +191,10 @@ class Cake
       self::$data['ignore'][$path] = 1;
       echo "Ignored ", $path, "\r\n";
       Cake::saveConfig();
+      if (!file_exists(self::$rootDir . '/' . $path))
+      {
+        echo "Note: The entered path does not exist\r\n";
+      }
     }
     else
     {
@@ -220,7 +225,22 @@ class Cake
   {
     self::forceLoad();
     
-    // TODO
+    self::runDir(array('self', 'transferCleanUp'), false);
+    
+    foreach (self::$data['states'] as $path => $state)
+    {
+      if (!isset(self::$cleanUpList[$path]))
+      {
+        echo 'Removed ', $path, "\r\n";
+        unset(self::$data['states'][$path]);
+      }
+    }
+    self::saveConfig();
+  }
+  
+  private static function transferCleanUp($path)
+  {
+    self::$cleanUpList[$path] = true;
   }
   
   public static function setDone()
@@ -230,14 +250,19 @@ class Cake
     self::runDir(array('Cake', 'transferSetDone'));
   }
   
+  public static function reset()
+  {
+    self::forceLoad();
+    self::$data['states'] = array();
+    self::saveConfig();
+  }
+  
   private static function setTransferred($path)
   {
     self::forceLoad();
     
     $path = self::sanitizePath($path);
     $relPath = self::makeRelative($path);
-    
-    // echo 'setTransferred() ', $relPath, "\r\n";
     
     self::$data['states'][$relPath] = filemtime($path);
     self::saveConfig();
@@ -249,8 +274,6 @@ class Cake
     
     $path = self::sanitizePath($path);
     $relPath = self::makeRelative($path);
-    
-    // echo 'hasChanged() ', $relPath, "\r\n";
     
     return (
       !isset(self::$data['states'][$relPath]) || 
@@ -288,7 +311,7 @@ class Cake
 
   }
   
-  private static function runDir($callback)
+  private static function runDir($callback, $doAll = true)
   {
     self::forceLoad();
     
@@ -296,7 +319,7 @@ class Cake
     self::$relativeDir = '';
     chdir(self::$rootDir);
     
-    self::runDirRec($callback);
+    self::runDirRec($callback, $doAll, '');
     
     chdir(self::$currentDir);
     self::$relativeDir = $relDir;
@@ -304,7 +327,7 @@ class Cake
     echo "Done\r\n";
   }
   
-  private static function runDirRec($callback, $dir='')
+  private static function runDirRec($callback, $doAll, $dir)
   {
     $dh = opendir($dir ? $dir : '.');
     while ($entry = readdir($dh))
@@ -312,15 +335,15 @@ class Cake
       if ($entry != '.' && $entry != '..')
       {
         $entryPath = ($dir ? $dir . '/' : '') . $entry;
-        if (! self::isIgnored($entryPath))
+        if (!$doAll || !self::isIgnored($entryPath))
         {
           if (is_dir($entryPath))
           {
-            self::runDirRec($callback, $entryPath);
+            self::runDirRec($callback, $doAll, $entryPath);
           }
           else
           {
-            if (self::hasChanged($entryPath))
+            if (!$doAll || self::hasChanged($entryPath))
             {
               call_user_func($callback, $entryPath);
             }
@@ -338,8 +361,6 @@ class Cake
   private static function transferDryRun($path)
   {
     $rpath = self::$data['conn']['path'];
-    echo 'rpath ', $rpath, "\r\n";
-    echo 'path ', $path, "\r\n";
     
     $dir = dirname($path);
     $to = ($rpath ? $rpath . '/' : '') . ($dir != '.' ? $dir : '');
@@ -357,7 +378,7 @@ class Cake
     }
     
     $dir = dirname($path);
-    $to = ($rpath ? $rpath . '/' : '') . ($dir != '.' ? $dir : '');
+    $to = $rpath . '/' . ($dir != '.' ? $dir : '');
     $to = self::sanitizePath($to);
     
     echo 'Transferring ', $path, ' to ', $to, "\r\n";
@@ -365,21 +386,48 @@ class Cake
     switch (self::$data['conn']['protocol'])
     {
       case 'ftp':
+        $reqFields = array('user', 'pass', 'host', 'path');
+        foreach ($reqFields as $f)
+        {
+          if (!isset(self::$data['conn'][$f]))
+          {
+            throw new Exception('Missing field ', $f);
+          }
+        }
+        
         $command = '/usr/bin/ftp -V -u ' .
           escapeshellarg('ftp://' . 
           $ruser . ':' . $rpass . 
-          '@' . $rhost . '/' . $to) . ' ' . 
+          '@' . $rhost . '/' . $to . '/') . ' ' . 
           escapeshellarg($path) . ' 2>&1';
         break;
         
       case 'scp':
+        $reqFields = array('user', 'pass', 'host', 'path');
+        foreach ($reqFields as $f)
+        {
+          if (!isset(self::$data['conn'][$f]))
+          {
+            throw new Exception('Missing field ', $f);
+          }
+        }
+        
         $command = 'scp ' . 
           escapeshellarg($path) . ' ' . 
           $ruser . '@' . 
-          $rhost . ':' . escapeshellarg($to) . ' 2>&1';
+          $rhost . ':' . escapeshellarg($to.'/') . ' 2>&1';
         break;
         
       case 'local':
+        $reqFields = array('path');
+        foreach ($reqFields as $f)
+        {
+          if (!isset(self::$data['conn'][$f]))
+          {
+            throw new Exception('Missing field ', $f);
+          }
+        }
+        
         @mkdir('/' . $to, 0777, true);
         $command = 'cp ' . 
           escapeshellarg($path) . 
@@ -400,7 +448,7 @@ class Cake
     echo $success ? 'Success' : "Failed:\r\n" . $r, "\r\n";
     if (!$success)
     {
-      echo $command;
+      echo $command, "\r\n";
       exit;
     }
     
