@@ -190,7 +190,7 @@ class Cake
     {
       self::$data['ignore'][$path] = 1;
       echo "Ignored ", $path, "\r\n";
-      Cake::saveConfig();
+      self::saveConfig();
       if (!file_exists(self::$rootDir . '/' . $path))
       {
         echo "Note: The entered path does not exist\r\n";
@@ -213,7 +213,7 @@ class Cake
     {
       unset(self::$data['ignore'][$path]);
       echo 'Deleted ignore ', $path, "\r\n";
-      Cake::saveConfig();
+      self::saveConfig();
     }
     else
     {
@@ -247,7 +247,7 @@ class Cake
   {
     self::forceLoad();
     
-    self::runDir(array('Cake', 'transferSetDone'));
+    self::runDir(array('self', 'transferSetDone'));
   }
   
   public static function reset()
@@ -301,14 +301,12 @@ class Cake
     
     if ($dryRun)
     {
-      self::runDir(array('Cake', 'transferDryRun'));
+      self::runDir(array('self', 'transferDryRun'));
     }
     else
     {
-      self::runDir(array('Cake', 'transfer'));
+      self::runDir(array('self', 'transfer'));
     }
-    
-
   }
   
   private static function runDir($callback, $doAll = true)
@@ -435,8 +433,6 @@ class Cake
         break;
     }
     
-    // echo $command, "\r\n"; return;
-    
     $r = shell_exec($command);
     $success = ($r == '');
     
@@ -451,7 +447,6 @@ class Cake
       echo $command, "\r\n";
       exit;
     }
-    
   }
 }
 

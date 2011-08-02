@@ -8,6 +8,13 @@ Cake::$currentDir = getcwd();
 
 array_shift($argv);
 
-CommandReader::read($argv);
+try
+{
+	CommandReader::read($argv);
+}
+catch (Exception $e)
+{
+	echo "Error:\r\n", $e->getMessage(), "\r\n";
+}
 
 ?>
