@@ -1,0 +1,39 @@
+Cake - Publishing changed files over SSH/FTP
+
+How to use:
+
+Creates a cake-repository in the current folder. Do this in the root folder of a project.
+cake init
+
+Set up the repository. thePath is the relative path to the home folder of the user account on the remote server.
+The following protocols are supported: ftp/scp/local. The remote path of local has to be non-relative.
+cake config host ftp.google.com
+cake config user theUser
+cake config pass thePass
+cake config path thePath
+cake config protocol theProtocol
+
+Now you can sync:
+cake
+
+If you want to see what will be transferred do this:
+cake n
+This is a dry run, like with rsync.
+
+The following command looks through all files and cleans up states for files that are missing:
+cake cleanup
+
+Print the repository data:
+cake debug
+
+Mark every file as not changed.
+cake done
+
+Mark every file as changed.
+cake reset
+
+Ignore a given path.
+cake ignore path
+
+Unignore a given path.
+cake unignore path
